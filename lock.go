@@ -3,6 +3,14 @@ A lock can be acquired for a given node with a set expiration time.
 
 The nodes using this package should be running clocks that are mostly in-sync, e.g. running NTP for the reasons listed below.
 
+Usage:
+
+	conf := &aws.Config{}
+	db := dynamodb.New(session.New(), conf.WithRegion("us-west-2"))
+	lk := lock.NewLock("testNode", lockTable, db)
+
+	lockKey := fmt.Sprintf("test:key-%d", rand.Int63())
+
 Split-brain possibilities:
 
 Because dynamodb does not provide any time functions in its query language all times
