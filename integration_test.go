@@ -68,7 +68,7 @@ func TestLockExpiration(t *testing.T) {
 	db := dynamodb.New(session.New(), conf.WithRegion("us-west-2"))
 	lk := lock.NewLock("testNode", lockTable, db)
 
-	lockKey := fmt.Sprintf("test:key-exp") //, rand.Int63())
+	lockKey := fmt.Sprintf("test:key-%d", rand.Int63())
 
 	// Lock with expiration in the past
 	locked, err := lk.Lock(lockKey, time.Now().Add(-10*time.Second))
