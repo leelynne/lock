@@ -7,11 +7,11 @@ The nodes using this package should be running clocks that are mostly in-sync, e
 Usage:
 ```go
 db := dynamodb.New(session.New(), &aws.Config{}
- node := lock.NewLock("myNodeID123", "locks", db)
+node := lock.NewLock("myNodeID123", "locks", db)
 
- locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
- ...
- node.Unlock("event123")
+locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
+...
+node.Unlock("event123")
 ```
 
 Split-brain possibilities:
