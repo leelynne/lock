@@ -5,12 +5,13 @@ A lock can be acquired for a given node with a set expiration time.
 The nodes using this package should be running clocks that are mostly in-sync, e.g. running NTP for the reasons listed below.
 
 Usage:
- ```db := dynamodb.New(session.New(), &aws.Config{}
+```db := dynamodb.New(session.New(), &aws.Config{}
  node := lock.NewLock("myNodeID123", "locks", db)
 
  locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
  ...
- node.Unlock("event123")```
+ node.Unlock("event123")
+```
 
 Split-brain possibilities:
 
