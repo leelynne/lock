@@ -1,16 +1,17 @@
 # lock
 Package lock implements a distributed lock on top of dynamodb.
-A lock can be acquired for a given node with a set expiration time.
+A lock can be acquired by a node/worker and with a set expiration time.
 
 The nodes using this package should be running clocks that are mostly in-sync, e.g. running NTP for the reasons listed below.
 
 Usage:
 ```go
-db := dynamodb.New(session.New(), &aws.Config{}
-node := lock.NewLock("myNodeID123", "locks", db)
+db := dynamodb.New(session.New(), &aws.Config{})
+tableName := "locks"
+node := lock.NewLock("myNodeID484", tableName, db)
 
 locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
-...
+// do stuff
 node.Unlock("event123")
 ```
 
@@ -29,4 +30,4 @@ of node a:
 To avoid split-brain issues:
  * only use this package on servers you control running NTP.
  * Don't rely on lock expirations granularity less than few a seconds.
- * Pad lock expiration times
+ * Pad lock expiration times.
