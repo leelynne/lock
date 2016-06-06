@@ -7,10 +7,13 @@ The nodes using this package should be running clocks that are mostly in-sync, e
 Usage:
 ```go
 db := dynamodb.New(session.New(), &aws.Config{})
-tableName := "locks"
-node := lock.NewLocker("myNodeID484", tableName, db)
+locker := lock.Locker{
+   TableName: "locks",
+   TableKey: "lock_key",
+   NodeID: "worker84",
+}
 
-locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
+locked, err := locker.Lock("event123", time.Now().Add(60 * time.Second))
 // do stuff
 node.Unlock("event123")
 ```

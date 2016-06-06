@@ -20,7 +20,11 @@ func TestLockBasics(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	conf := &aws.Config{}
 	db := dynamodb.New(session.New(), conf.WithRegion("us-west-2"))
-	lk := lock.NewLocker("testNode", lockTable, db)
+	lk := &lock.Locker{
+		NodeID:    "testNode",
+		TableName: lockTable,
+		DB:        db,
+	}
 
 	lockKey := fmt.Sprintf("test:key-%d", rand.Int63())
 
@@ -42,7 +46,11 @@ func TestLockBasics(t *testing.T) {
 	}
 
 	// Attempt lock from another node
-	otherLk := lock.NewLocker("testNode2", lockTable, db)
+	otherLk := &lock.Locker{
+		NodeID:    "testNode2",
+		TableName: lockTable,
+		DB:        db,
+	}
 	olock, err := otherLk.Lock(lockKey, time.Now().Add(10*time.Minute))
 	if err != nil {
 		t.Fatalf("Err attempting to lock from another node - %s", err.Error())
@@ -66,7 +74,11 @@ func TestLockExpiration(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	conf := &aws.Config{}
 	db := dynamodb.New(session.New(), conf.WithRegion("us-west-2"))
-	lk := lock.NewLocker("testNode", lockTable, db)
+	lk := &lock.Locker{
+		NodeID:    "testNode",
+		TableName: lockTable,
+		DB:        db,
+	}
 
 	lockKey := fmt.Sprintf("test:key-%d", rand.Int63())
 
@@ -80,7 +92,11 @@ func TestLockExpiration(t *testing.T) {
 	}
 
 	// Attempt lock from another node
-	otherLk := lock.NewLocker("testNode2", lockTable, db)
+	otherLk := &lock.Locker{
+		NodeID:    "testNode2",
+		TableName: lockTable,
+		DB:        db,
+	}
 	olock, err := otherLk.Lock(lockKey, time.Now().Add(10*time.Minute))
 	if err != nil {
 		t.Errorf("Err attempting to lock from another node - %s", err.Error())

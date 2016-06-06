@@ -4,12 +4,16 @@ A lock can be acquired for a given node with a set expiration time.
 The nodes using this package should be running clocks that are mostly in-sync, e.g. running NTP for the reasons listed below.
 
 Usage:
- db := dynamodb.New(session.New(), &aws.Config{}
- node := lock.NewLocker("myNodeID123", "locks", db)
+ db := dynamodb.New(session.New(), &aws.Config{})
+ locker := lock.Locker{
+   TableName: "locks",
+   TableKey: "lock_key",
+   NodeID: "worker84",
+ }
 
- locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
- ...
- node.Unlock("event123")
+ locked, err := locker.Lock("event123", time.Now().Add(60 * time.Second))
+ // do stuff
+ locker.Unlock("event123")
 
 Split-brain possibilities:
 
@@ -24,67 +28,73 @@ of node a:
 To avoid split-brain issues:
  - only use this package on servers you control running NTP.
  - Don't rely on lock expirations granularity less than few a seconds.
- - Pad lock expiration times.
+ - Pad lock nnexpiration times.
 */
 
 package lock
 
 import (
 	"fmt"
+	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
 const (
-	tableKey      = "lock_key"
-	expColumnName = "lease_expiration"
+	DefaultTableName = "locks"
+	DefaultTableKey  = "lock_key"
+	expColumnName    = "lease_expiration"
 )
 
 type Locker struct {
-	tableName string
-	nodeId    string // ID to use for locking
-	db        *dynamodb.DynamoDB
+	TableName string // Dynamo table name. Defaults to "locks"
+	TableKey  string // Dynamo table primary key name. Defaults to "lock_key""
+	NodeID    string // Node ID to use. Defaults to host name
+	DB        *dynamodb.DynamoDB
+	init      sync.Once
+	state     *state
 }
 
-// NewLocker creates an object for acquiring distributed locks.
-func NewLocker(nodeId, tableName string, db *dynamodb.DynamoDB) *Locker {
-	return &Locker{
-		tableName: tableName,
-		nodeId:    nodeId,
-		db:        db,
-	}
+type state struct {
+	tableName string
+	tableKey  string
+	nodeID    string
+	db        *dynamodb.DynamoDB
 }
 
 // Lock attempts to grant exclusive access to the given key until the expiration.
 // Lock will return false if the lock is currently held by another node otherwise true.
 // A node can re-lock the same. A non-nil error means the lock was not granted.
 func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
+	l.init.Do(l.getState)
 	// Conditional put on item not present
 	now := time.Now().UnixNano() / 1000
 	nowString := strconv.FormatInt(now, 10)
 	expString := strconv.FormatInt(expiration.UnixNano()/1000, 10)
-	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", tableKey)
+	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", l.state.tableKey)
 	owned := "nodeId = :nodeId"
 	alreadyExpired := fmt.Sprintf(":now > %s", expColumnName)
 
 	item := map[string]*dynamodb.AttributeValue{}
-	item[tableKey] = &dynamodb.AttributeValue{S: aws.String(key)}
-	item["nodeId"] = &dynamodb.AttributeValue{S: aws.String(l.nodeId)}
+	item[l.state.tableKey] = &dynamodb.AttributeValue{S: aws.String(key)}
+	item["nodeId"] = &dynamodb.AttributeValue{S: aws.String(l.state.nodeID)}
 	item[expColumnName] = &dynamodb.AttributeValue{N: aws.String(expString)}
 	req := &dynamodb.PutItemInput{
 		Item:                item,
 		ConditionExpression: aws.String(fmt.Sprintf("(%s) OR (%s) OR (%s)", entryNotExist, owned, alreadyExpired)),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":now":    &dynamodb.AttributeValue{N: aws.String(nowString)},
-			":nodeId": &dynamodb.AttributeValue{S: aws.String(l.nodeId)},
+			":nodeId": &dynamodb.AttributeValue{S: aws.String(l.state.nodeID)},
 		},
-		TableName: aws.String(l.tableName),
+		TableName: aws.String(l.state.tableName),
 	}
-	_, err := l.db.PutItem(req)
+	_, err := l.state.db.PutItem(req)
 	if err != nil {
 		if awserr, ok := err.(awserr.Error); ok {
 			if awserr.Code() == "ConditionalCheckFailedException" {
@@ -99,20 +109,21 @@ func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
 
 // Unlock removes the exclusive lock on this key.
 func (l *Locker) Unlock(key string) error {
-	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", tableKey)
+	l.init.Do(l.getState)
+	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", l.state.tableKey)
 	owned := "nodeId = :nodeId"
 
 	dynamoKey := map[string]*dynamodb.AttributeValue{}
-	dynamoKey[tableKey] = &dynamodb.AttributeValue{S: aws.String(key)}
+	dynamoKey[l.state.tableKey] = &dynamodb.AttributeValue{S: aws.String(key)}
 	req := &dynamodb.DeleteItemInput{
 		Key:                 dynamoKey,
 		ConditionExpression: aws.String(fmt.Sprintf("(%s) OR (%s)", entryNotExist, owned)),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-			":nodeId": &dynamodb.AttributeValue{S: aws.String(l.nodeId)},
+			":nodeId": &dynamodb.AttributeValue{S: aws.String(l.state.nodeID)},
 		},
-		TableName: aws.String(l.tableName),
+		TableName: aws.String(l.state.tableName),
 	}
-	_, err := l.db.DeleteItem(req)
+	_, err := l.state.db.DeleteItem(req)
 	if err != nil {
 		if awserr, ok := err.(awserr.Error); ok {
 			if awserr.Code() == "ConditionalCheckFailedException" {
@@ -126,4 +137,30 @@ func (l *Locker) Unlock(key string) error {
 		}
 	}
 	return nil
+}
+
+func (l *Locker) getState() {
+	s := &state{
+		tableName: l.TableName,
+		tableKey:  l.TableKey,
+		nodeID:    l.NodeID,
+		db:        l.DB,
+	}
+	if s.tableName == "" {
+		s.tableName = DefaultTableName
+	}
+	if s.tableKey == "" {
+		s.tableKey = DefaultTableKey
+	}
+	if s.nodeID == "" {
+		name, err := os.Hostname()
+		if err != nil {
+			name = "unknownNode"
+		}
+		s.nodeID = name
+	}
+	if s.db == nil {
+		s.db = dynamodb.New(session.New())
+	}
+	l.state = s
 }
