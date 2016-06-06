@@ -5,7 +5,7 @@ The nodes using this package should be running clocks that are mostly in-sync, e
 
 Usage:
  db := dynamodb.New(session.New(), &aws.Config{})
- locker := lock.Locker{
+ locker := &lock.Locker{
    TableName: "locks",
    TableKey: "lock_key",
    NodeID: "worker84",
