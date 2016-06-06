@@ -25,7 +25,7 @@ of node a:
 ```
  a.lock("event123", 250) a time:200, b time:255 - a locks 'event123' and thinks is has exclusive rights until time 255 (55 ticks)
 
- b.lock("event123", 350) a time:210, b time:260 - b locks 'event'123 because for node b the lock as expired.  b now thinks it has exclusive until 350
+ b.lock("event123", 350) a time:210, b time:260 - b locks 'event123' because for node b the lock as expired.  b now thinks it has exclusive until 350
 ```
 
 To avoid split-brain issues:
