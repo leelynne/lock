@@ -83,7 +83,7 @@ func TestUnLockFail(t *testing.T) {
 	}
 }
 
-func getTestLock(respCode int, respBody string) (*Lock, *httptest.Server) {
+func getTestLock(respCode int, respBody string) (*Locker, *httptest.Server) {
 	ts, client := getHTTPResponse(respCode, respBody)
 
 	conf := &aws.Config{
@@ -92,7 +92,7 @@ func getTestLock(respCode int, respBody string) (*Lock, *httptest.Server) {
 		MaxRetries: aws.Int(0),
 	}
 	db := dynamodb.New(session.New(), conf.WithRegion("us-west-2"))
-	return NewLock("testNode12", "locks_table", db), ts
+	return NewLocker("testNode12", "locks_table", db), ts
 }
 
 func getHTTPResponse(code int, body string) (*httptest.Server, *http.Client) {

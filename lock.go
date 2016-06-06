@@ -5,7 +5,7 @@ The nodes using this package should be running clocks that are mostly in-sync, e
 
 Usage:
  db := dynamodb.New(session.New(), &aws.Config{}
- node := lock.NewLock("myNodeID123", "locks", db)
+ node := lock.NewLocker("myNodeID123", "locks", db)
 
  locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
  ...
@@ -43,14 +43,15 @@ const (
 	expColumnName = "lease_expiration"
 )
 
-type Lock struct {
+type Locker struct {
 	tableName string
 	nodeId    string // ID to use for locking
 	db        *dynamodb.DynamoDB
 }
 
-func NewLock(nodeId, tableName string, db *dynamodb.DynamoDB) *Lock {
-	return &Lock{
+// NewLocker creates an object for acquiring distributed locks.
+func NewLocker(nodeId, tableName string, db *dynamodb.DynamoDB) *Locker {
+	return &Locker{
 		tableName: tableName,
 		nodeId:    nodeId,
 		db:        db,
@@ -60,7 +61,7 @@ func NewLock(nodeId, tableName string, db *dynamodb.DynamoDB) *Lock {
 // Lock attempts to grant exclusive access to the given key until the expiration.
 // Lock will return false if the lock is currently held by another node otherwise true.
 // A node can re-lock the same. A non-nil error means the lock was not granted.
-func (l *Lock) Lock(key string, expiration time.Time) (locked bool, e error) {
+func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
 	// Conditional put on item not present
 	now := time.Now().UnixNano() / 1000
 	nowString := strconv.FormatInt(now, 10)
@@ -96,7 +97,7 @@ func (l *Lock) Lock(key string, expiration time.Time) (locked bool, e error) {
 }
 
 // Unlock removes the exclusive lock on this key.
-func (l *Lock) Unlock(key string) error {
+func (l *Locker) Unlock(key string) error {
 	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", tableKey)
 	owned := "nodeId = :nodeId"
 

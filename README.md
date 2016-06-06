@@ -8,7 +8,7 @@ Usage:
 ```go
 db := dynamodb.New(session.New(), &aws.Config{})
 tableName := "locks"
-node := lock.NewLock("myNodeID484", tableName, db)
+node := lock.NewLocker("myNodeID484", tableName, db)
 
 locked, err := node.Lock("event123", time.Now().Add(60 * time.Second))
 // do stuff
