@@ -9,6 +9,7 @@ Usage:
    TableName: "locks",
    TableKey: "lock_key",
    NodeID: "worker84",
+   DB: db,
  }
 
  locked, err := locker.Lock("event123", time.Now().Add(60 * time.Second))
@@ -74,9 +75,9 @@ type state struct {
 func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
 	l.init.Do(l.getState)
 	// Conditional put on item not present
-	now := time.Now().UnixNano() / 1000
+	now := time.Now().UnixNano() / int64(time.Millisecond)
 	nowString := strconv.FormatInt(now, 10)
-	expString := strconv.FormatInt(expiration.UnixNano()/1000, 10)
+	expString := strconv.FormatInt(expiration.UnixNano()/int64(time.Millisecond), 10)
 	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", l.state.tableKey)
 	owned := "nodeId = :nodeId"
 	alreadyExpired := fmt.Sprintf(":now > %s", expColumnName)
