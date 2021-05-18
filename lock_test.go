@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ func TestLockSuccess(t *testing.T) {
 	lk, ts := getTestLock(200, "{}")
 	defer ts.Close()
 
-	locked, err := lk.Lock("mylock", time.Now().Add(10*time.Minute))
+	locked, err := lk.Lock(context.Background(), "mylock", time.Now().Add(10*time.Minute))
 	if err != nil {
 		t.Error(err)
 	}
@@ -31,7 +32,7 @@ func TestNoLock(t *testing.T) {
 		`{"__type":"com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException","message":"The conditional request failed"}`)
 	defer ts.Close()
 
-	locked, err := lk.Lock("mylock", time.Now().Add(10*time.Minute))
+	locked, err := lk.Lock(context.Background(), "mylock", time.Now().Add(10*time.Minute))
 	if locked {
 		t.Error("Should not have acquired the lock")
 	}
@@ -43,7 +44,7 @@ func TestNoLock(t *testing.T) {
 func TestLockError(t *testing.T) {
 	lk, ts := getTestLock(500, "{}")
 	defer ts.Close()
-	locked, err := lk.Lock("mylock", time.Now().Add(10*time.Minute))
+	locked, err := lk.Lock(context.Background(), "mylock", time.Now().Add(10*time.Minute))
 	if locked {
 		t.Error("Should not have acquired the lock")
 	}
@@ -56,7 +57,7 @@ func TestUnLockSuccess(t *testing.T) {
 	lk, ts := getTestLock(200, "{}")
 	defer ts.Close()
 
-	err := lk.Unlock("mylock")
+	err := lk.Unlock(context.Background(), "mylock")
 	if err != nil {
 		t.Error(err)
 	}
@@ -67,7 +68,7 @@ func TestUnLockOwnedByOther(t *testing.T) {
 		`{"__type":"com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException","message":"The conditional request failed"}`)
 	defer ts.Close()
 
-	err := lk.Unlock("mylock")
+	err := lk.Unlock(context.Background(), "mylock")
 	if err == nil {
 		t.Error("Expected an error when unlocking a lock we don't own or doesnt' exist.")
 	}
@@ -77,7 +78,7 @@ func TestUnLockFail(t *testing.T) {
 	lk, ts := getTestLock(500, "{}")
 	defer ts.Close()
 
-	err := lk.Unlock("mylock")
+	err := lk.Unlock(context.Background(), "mylock")
 	if err == nil {
 		t.Error("Unlock should return an error when the db query fails")
 	}

@@ -35,6 +35,7 @@ To avoid split-brain issues:
 package lock
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -72,7 +73,7 @@ type state struct {
 // Lock attempts to grant exclusive access to the given key until the expiration.
 // Lock will return false if the lock is currently held by another node otherwise true.
 // A node can re-lock the same. A non-nil error means the lock was not granted.
-func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
+func (l *Locker) Lock(ctx context.Context, key string, expiration time.Time) (locked bool, e error) {
 	l.init.Do(l.getState)
 	// Conditional put on item not present
 	now := time.Now().UnixNano() / int64(time.Millisecond)
@@ -95,7 +96,7 @@ func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
 		},
 		TableName: aws.String(l.state.tableName),
 	}
-	_, err := l.state.db.PutItem(req)
+	_, err := l.state.db.PutItemWithContext(ctx, req)
 	if err != nil {
 		if awserr, ok := err.(awserr.Error); ok {
 			if awserr.Code() == "ConditionalCheckFailedException" {
@@ -109,7 +110,7 @@ func (l *Locker) Lock(key string, expiration time.Time) (locked bool, e error) {
 }
 
 // Unlock removes the exclusive lock on this key.
-func (l *Locker) Unlock(key string) error {
+func (l *Locker) Unlock(ctx context.Context, key string) error {
 	l.init.Do(l.getState)
 	entryNotExist := fmt.Sprintf("attribute_not_exists(%s)", l.state.tableKey)
 	owned := "nodeId = :nodeId"
@@ -124,7 +125,7 @@ func (l *Locker) Unlock(key string) error {
 		},
 		TableName: aws.String(l.state.tableName),
 	}
-	_, err := l.state.db.DeleteItem(req)
+	_, err := l.state.db.DeleteItemWithContext(ctx, req)
 	if err != nil {
 		if awserr, ok := err.(awserr.Error); ok {
 			if awserr.Code() == "ConditionalCheckFailedException" {
