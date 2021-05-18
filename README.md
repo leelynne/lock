@@ -13,9 +13,9 @@ locker := &lock.Locker{
    NodeID: "worker84",
 }
 
-locked, err := locker.Lock("event123", time.Now().Add(60 * time.Second))
+locked, err := locker.Lock(ctx, "event123", time.Now().Add(60 * time.Second))
 // do stuff
-node.Unlock("event123")
+node.Unlock(ctx, "event123")
 ```
 
 Split-brain possibilities:
